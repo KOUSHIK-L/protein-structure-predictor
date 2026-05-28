@@ -1,0 +1,8 @@
+streamlit
+streamlit-option-menu
+stmol==0.0.9
+py3Dmol
+biotite
+numpy
+pandas
+requests
