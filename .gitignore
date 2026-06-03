@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Prediction outputs
+*.pdb
+
+# Virtual environments
+protein_pred/
+venv/
+env/
+.env/
+.venv/
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# IDE
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
