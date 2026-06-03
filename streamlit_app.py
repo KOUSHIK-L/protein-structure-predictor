@@ -3,13 +3,11 @@ import py3Dmol
 import requests
 import biotite.structure as struc
 from biotite.structure.io.pdb import PDBFile
-from streamlit_option_menu import option_menu
 import re
 import numpy as np
 import pandas as pd
 from io import StringIO
 
-# Page config
 st.set_page_config(
     page_title="ESMFold | Protein Structure Predictor",
     page_icon="🧬",
@@ -17,77 +15,13 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# CSS
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
-
-/* Hide default Streamlit chrome */
-#MainMenu { visibility: hidden; }
-footer    { visibility: hidden; }
-header [data-testid="stToolbar"] { visibility: hidden; }
-
-/* Sidebar */
-[data-testid="stSidebar"] {
-    background: #ffffff;
-    border-right: 1px solid #e2e8f0;
-}
-
-/* Predict button */
-[data-testid="stSidebar"] .stButton > button {
-    background: linear-gradient(135deg, #0f3460 0%, #1a6eb5 100%) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 10px !important;
-    padding: 0.7rem 1rem !important;
-    font-weight: 600 !important;
-    font-size: 0.95rem !important;
-    width: 100% !important;
-    box-shadow: 0 2px 10px rgba(15,52,96,0.3) !important;
-    transition: all 0.2s ease !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-    opacity: 0.88 !important;
-    box-shadow: 0 4px 18px rgba(15,52,96,0.4) !important;
-    transform: translateY(-1px) !important;
-}
-[data-testid="stSidebar"] .stButton > button:disabled {
-    background: #e2e8f0 !important;
-    color: #94a3b8 !important;
-    box-shadow: none !important;
-    transform: none !important;
-}
-
-/* Download button */
-.stDownloadButton > button {
-    background: #f0f9ff !important;
-    color: #0f3460 !important;
-    border: 1px solid #bae6fd !important;
-    border-radius: 8px !important;
-    font-weight: 500 !important;
-    transition: background 0.2s !important;
-}
-.stDownloadButton > button:hover { background: #e0f2fe !important; }
-
-/* Tabs */
-button[role="tab"] { font-weight: 500 !important; }
-button[role="tab"][aria-selected="true"] {
-    color: #0f3460 !important;
-    font-weight: 600 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Session state
-_defaults = {"txt": None, "uniprot_meta": None, "pdb_string": None, "prediction_error": None}
-for k, v in _defaults.items():
+defaults = {"txt": None, "uniprot_meta": None, "pdb_string": None, "prediction_error": None}
+for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 
-# HELPERS
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def render_mol(pdb, color_mode="Spectrum"):
     pdbview = py3Dmol.view(width=800, height=520)
@@ -118,45 +52,14 @@ def parse_fasta(text):
     )
 
 
-def plddt_badge(score):
+def plddt_label(score):
     if score >= 90:
-        bg, fg, label = "#dbeafe", "#1d4ed8", "Very High"
+        return "Very High"
     elif score >= 70:
-        bg, fg, label = "#d1fae5", "#065f46", "Confident"
+        return "Confident"
     elif score >= 50:
-        bg, fg, label = "#fef9c3", "#854d0e", "Low"
-    else:
-        bg, fg, label = "#fee2e2", "#991b1b", "Very Low"
-    return (
-        f'<span style="background:{bg};color:{fg};padding:0.3rem 0.9rem;'
-        f'border-radius:999px;font-weight:600;font-size:0.88rem;'
-        f'display:inline-block">{label} &nbsp;·&nbsp; {score:.1f}</span>'
-    )
-
-
-def metric_card(label, value, sub=""):
-    return f"""
-<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;
-            padding:1.2rem;text-align:center;height:100%">
-    <div style="font-size:0.7rem;font-weight:600;color:#64748b;
-                text-transform:uppercase;letter-spacing:0.8px">{label}</div>
-    <div style="font-size:1.9rem;font-weight:700;color:#0f3460;
-                margin:0.3rem 0 0.1rem;line-height:1.1">{value}</div>
-    <div style="font-size:0.78rem;color:#94a3b8">{sub}</div>
-</div>"""
-
-
-def gradient_header(title, subtitle=""):
-    sub_html = (
-        f'<p style="margin:0.4rem 0 0;opacity:0.8;font-size:0.88rem">{subtitle}</p>'
-        if subtitle else ""
-    )
-    return f"""
-<div style="background:linear-gradient(135deg,#0f3460 0%,#1a6eb5 100%);
-            border-radius:16px;padding:2rem 2.5rem;color:white;margin-bottom:1.5rem">
-    <h2 style="margin:0;font-size:1.55rem;font-weight:700">{title}</h2>
-    {sub_html}
-</div>"""
+        return "Low"
+    return "Very Low"
 
 
 def fetch_fasta_from_url(url):
@@ -253,37 +156,19 @@ def call_esmfold_api(sequence):
     return r.content.decode("utf-8"), None
 
 
-# SIDEBAR
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    # Brand
-    st.markdown("""
-    <div style="text-align:center;padding:1.2rem 0 0.8rem">
-        <div style="font-size:2.8rem">🧬</div>
-        <div style="font-size:1.15rem;font-weight:700;color:#0f3460;margin-top:0.2rem">
-            ESMFold
-        </div>
-        <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.1rem">
-            Protein Structure Predictor
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
+    st.title("🧬 ESMFold")
+    st.caption("Protein Structure Predictor")
     st.divider()
 
-    # ① Input
-    st.markdown(
-        '<p style="font-size:0.7rem;font-weight:600;color:#64748b;'
-        'text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0.4rem">'
-        '① Input Sequence</p>',
-        unsafe_allow_html=True,
-    )
+    st.subheader("① Input Sequence")
 
     txt_input = st.text_area(
         "Paste amino acid sequence",
         placeholder="ACDEFGHIKLMNPQRSTVWY...",
         height=95,
-        label_visibility="collapsed",
     )
     if txt_input:
         clean = txt_input.strip().upper()
@@ -318,7 +203,6 @@ with st.sidebar:
 
     txt = st.session_state.txt
 
-    # Validation + quick stats
     if txt:
         if not is_valid_protein_sequence(txt):
             st.error("Invalid characters - use standard single-letter AA codes.")
@@ -333,13 +217,7 @@ with st.sidebar:
 
     st.divider()
 
-    # ② Options
-    st.markdown(
-        '<p style="font-size:0.7rem;font-weight:600;color:#64748b;'
-        'text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0.4rem">'
-        '② Options</p>',
-        unsafe_allow_html=True,
-    )
+    st.subheader("② Options")
     max_len = st.slider("Max residues to fold", 50, 600, 400,
                         help="ESMFold is most accurate at ≤400 aa")
     color_mode = st.selectbox(
@@ -350,8 +228,7 @@ with st.sidebar:
 
     st.divider()
 
-    # Predict
-    predict = st.button("🔬  Predict Structure", disabled=(txt is None), width='stretch')
+    predict = st.button("🔬 Predict Structure", disabled=(txt is None), width="stretch")
 
     if predict and txt:
         with st.spinner("Running ESMFold..."):
@@ -363,33 +240,18 @@ with st.sidebar:
             st.session_state.pdb_string = pdb
             st.session_state.prediction_error = None
 
-# main area section
 
-page = option_menu(
-    None,
-    ["About", "Structure Prediction"],
-    icons=["info-circle", "cpu"],
-    orientation="horizontal",
-    styles={
-        "container":        {"padding": "0", "background-color": "#f8fafc"},
-        "icon":             {"color": "#64748b"},
-        "nav-link":         {"font-size": "0.9rem", "font-weight": "500", "color": "#64748b"},
-        "nav-link-selected": {
-            "background-color": "#0f3460",
-            "color": "white",
-            "font-weight": "600",
-        },
-    },
-)
+# ── Main area ─────────────────────────────────────────────────────────────────
 
+page = st.radio("Navigate", ["About", "Structure Prediction"], horizontal=True, label_visibility="collapsed")
 
-# ABOUT PAGE
+st.divider()
+
+# ── About page ────────────────────────────────────────────────────────────────
 
 if page == "About":
-    st.markdown(gradient_header(
-        "🧬 About ESMFold",
-        "AI-powered 3D protein structure prediction from sequence alone"
-    ), unsafe_allow_html=True)
+    st.title("🧬 About ESMFold")
+    st.caption("AI-powered 3D protein structure prediction from sequence alone")
 
     col1, col2 = st.columns(2)
 
@@ -400,54 +262,50 @@ if page == "About":
 1. **ESM-2 transformer** reads the amino acid sequence and encodes evolutionary context learned from 250 million proteins
 2. **Folding head** converts sequence embeddings into 3D atomic coordinates
 3. **plDDT score** quantifies per-residue prediction confidence (0–100)
-4. Full prediction runs in **seconds to minutes** - no MSA database needed
+4. Full prediction runs in **seconds to minutes** — no MSA database needed
             """)
 
     with col2:
         with st.container(border=True):
             st.markdown("#### 📊 plDDT Confidence Guide")
-            for bg, rng, label in [
-                ("#dbeafe", "> 90",  "Very High - backbone is reliable"),
-                ("#d1fae5", "70–90", "Confident - generally accurate"),
-                ("#fef9c3", "50–70", "Low - treat with caution"),
-                ("#fee2e2", "< 50",  "Very Low - likely disordered"),
-            ]:
-                st.markdown(
-                    f'<div style="background:{bg};border-radius:8px;padding:0.5rem 0.85rem;'
-                    f'margin-bottom:0.4rem;font-size:0.88rem"><b>{rng}</b> - {label}</div>',
-                    unsafe_allow_html=True,
-                )
+            st.markdown("""
+| Score | Confidence | Meaning |
+|-------|-----------|---------|
+| > 90 | Very High | Backbone is reliable |
+| 70–90 | Confident | Generally accurate |
+| 50–70 | Low | Treat with caution |
+| < 50 | Very Low | Likely disordered |
+            """)
 
     with st.container(border=True):
         st.markdown("#### 📥 Accepted Input Formats")
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown("**Direct sequence**\nPaste raw single-letter amino acid codes into the sidebar")
+            st.markdown("**Direct sequence**")
+            st.caption("Paste raw single-letter amino acid codes into the sidebar")
         with c2:
-            st.markdown("**UniProt FASTA URL**\nAutomatically fetches the sequence and protein metadata")
+            st.markdown("**UniProt FASTA URL**")
+            st.caption("Automatically fetches the sequence and protein metadata")
         with c3:
-            st.markdown("**File upload**\nSupports `.fasta`, `.fa`, and `.txt` files")
+            st.markdown("**File upload**")
+            st.caption("Supports `.fasta`, `.fa`, and `.txt` files")
 
     with st.container(border=True):
         st.markdown("#### 📚 References")
         st.markdown("""
 - Lin et al. (2023). *Evolutionary-scale prediction of atomic-level protein structure with a language model.* [DOI: 10.1126/science.ade2574](https://www.science.org/doi/10.1126/science.ade2574)
-- [ESM Metagenomic Atlas - Meta AI blog](https://ai.facebook.com/blog/protein-folding-esmfold-metagenomics/)
-- [AlphaFold vs ESMFold - Nature news](https://www.nature.com/articles/d41586-022-03539-1)
-- [Tutorial by Chanin Nantasenamat (dataprofessor) - YouTube](https://youtu.be/GHoE4VkDehY?si=aKNldfYGv9eW1I7f)
-""")
+- [ESM Metagenomic Atlas — Meta AI blog](https://ai.facebook.com/blog/protein-folding-esmfold-metagenomics/)
+- [AlphaFold vs ESMFold — Nature news](https://www.nature.com/articles/d41586-022-03539-1)
+- [Tutorial by Chanin Nantasenamat (dataprofessor) — YouTube](https://youtu.be/GHoE4VkDehY?si=aKNldfYGv9eW1I7f)
+        """)
 
 
-# PREDICTION PAGE
+# ── Structure Prediction page ─────────────────────────────────────────────────
 
 if page == "Structure Prediction":
+    st.title("🔬 Structure Prediction")
+    st.caption("Enter a sequence in the sidebar → set options → click Predict Structure")
 
-    st.markdown(gradient_header(
-        "🔬 Structure Prediction",
-        "Enter a sequence in the sidebar → set options → click Predict Structure",
-    ), unsafe_allow_html=True)
-
-    # Error state
     if st.session_state.prediction_error:
         st.error(st.session_state.prediction_error)
         st.info(
@@ -456,32 +314,19 @@ if page == "Structure Prediction":
             "as an alternative."
         )
 
-    # UniProt metadata card
     if st.session_state.uniprot_meta:
         meta = st.session_state.uniprot_meta
         with st.container(border=True):
             st.markdown("**🔎 UniProt Protein Info**")
             c1, c2, c3 = st.columns(3)
-            c1.markdown(f"**Protein**\n{meta['name']}")
-            c2.markdown(f"**Gene**\n{meta['gene'] or '-'}")
-            c3.markdown(f"**Organism**\n*{meta['organism']}*")
+            c1.markdown(f"**Protein**\n\n{meta['name']}")
+            c2.markdown(f"**Gene**\n\n{meta['gene'] or '—'}")
+            c3.markdown(f"**Organism**\n\n*{meta['organism']}*")
             if meta["function"] != "Not available":
                 st.caption(f"**Function:** {meta['function']}")
 
-    # Empty / Welcome state
     if not st.session_state.pdb_string and not st.session_state.prediction_error:
-        st.markdown("""
-        <div style="text-align:center;padding:2.5rem 1rem 1rem;color:#94a3b8">
-            <div style="font-size:3.5rem">🔬</div>
-            <div style="font-size:1.1rem;font-weight:600;color:#64748b;margin-top:0.6rem">
-                Ready to predict
-            </div>
-            <div style="font-size:0.88rem;margin-top:0.4rem">
-                Paste a sequence or paste a UniProt URL in the sidebar, then click
-                <b>Predict Structure</b>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info("Ready to predict — paste a sequence or UniProt URL in the sidebar, then click **Predict Structure**.")
 
         st.markdown("#### 💡 Example proteins to try")
         examples = [
@@ -494,12 +339,8 @@ if page == "Structure Prediction":
                 with st.container(border=True):
                     st.markdown(f"**{name}**")
                     st.caption(desc)
-                    st.code(
-                        f"https://rest.uniprot.org/uniprotkb/{acc}.fasta",
-                        language=None,
-                    )
+                    st.code(f"https://rest.uniprot.org/uniprotkb/{acc}.fasta", language=None)
 
-    # Results
     if st.session_state.pdb_string:
         pdb_string = st.session_state.pdb_string
         plddt_df   = extract_plddt_per_residue(pdb_string)
@@ -508,35 +349,24 @@ if page == "Structure Prediction":
 
         mean_plddt = round(float(plddt_df["plDDT"].mean()), 2) if not plddt_df.empty else None
 
-        # Summary metrics row 
         if mean_plddt is not None:
-            conf_label = (
-                "Very High" if mean_plddt >= 90 else
-                "Confident" if mean_plddt >= 70 else
-                "Low"        if mean_plddt >= 50 else "Very Low"
-            )
+            conf_label = plddt_label(mean_plddt)
             c1, c2, c3, c4 = st.columns(4)
-            c1.markdown(metric_card("Sequence Length", f"{len(folded_seq)} aa"), unsafe_allow_html=True)
-            c2.markdown(metric_card("Mean plDDT", f"{mean_plddt}"), unsafe_allow_html=True)
-            c3.markdown(metric_card("Confidence", conf_label), unsafe_allow_html=True)
+            c1.metric("Sequence Length", f"{len(folded_seq)} aa")
+            c2.metric("Mean plDDT", f"{mean_plddt}")
+            c3.metric("Confidence", conf_label)
             if ss_counts:
-                dom  = max(ss_counts, key=ss_counts.get)
+                dom = max(ss_counts, key=ss_counts.get)
                 dom_pct = round(ss_counts[dom] / sum(ss_counts.values()) * 100, 0)
-                c4.markdown(
-                    metric_card("Dominant SS", dom.split("/")[0], f"{dom_pct:.0f}% of residues"),
-                    unsafe_allow_html=True,
-                )
-            st.markdown("<br>", unsafe_allow_html=True)
+                c4.metric("Dominant SS", dom.split("/")[0], f"{dom_pct:.0f}% of residues")
 
-        # Result tabs 
         tab1, tab2, tab3, tab4 = st.tabs([
-            "🔬  3D Structure",
-            "📊  plDDT Analysis",
-            "🧩  Secondary Structure",
-            "🔤  Sequence Analysis",
+            "🔬 3D Structure",
+            "📊 plDDT Analysis",
+            "🧩 Secondary Structure",
+            "🔤 Sequence Analysis",
         ])
 
-        # Tab 1: 3D viewer
         with tab1:
             with st.container(border=True):
                 viewer_col, info_col = st.columns([3, 1])
@@ -545,52 +375,35 @@ if page == "Structure Prediction":
                 with info_col:
                     st.markdown("**Color scheme**")
                     st.caption(color_mode)
-                    st.markdown("---")
+                    st.divider()
                     if mean_plddt is not None:
-                        st.markdown("**Mean plDDT**")
-                        st.markdown(plddt_badge(mean_plddt), unsafe_allow_html=True)
-                    st.markdown("---")
+                        st.metric("Mean plDDT", f"{mean_plddt}", plddt_label(mean_plddt))
+                    st.divider()
                     st.download_button(
                         "⬇️ Download PDB",
                         data=pdb_string,
                         file_name="predicted.pdb",
                         mime="text/plain",
-                        width='stretch',
+                        width="stretch",
                     )
-                    st.caption(
-                        "Open with PyMOL, ChimeraX, or "
-                        "[RCSB Viewer](https://www.rcsb.org/3d-view)"
-                    )
+                    st.caption("Open with PyMOL, ChimeraX, or [RCSB Viewer](https://www.rcsb.org/3d-view)")
 
-        # Tab 2: plDDT
         with tab2:
             if not plddt_df.empty:
                 with st.container(border=True):
-                    st.markdown(plddt_badge(mean_plddt), unsafe_allow_html=True)
-                    st.markdown("<br>", unsafe_allow_html=True)
-
-                    band_cols = st.columns(4)
-                    for col, (bg, rng, label) in zip(band_cols, [
-                        ("#dbeafe", "> 90",  "Very High"),
-                        ("#d1fae5", "70–90", "Confident"),
-                        ("#fef9c3", "50–70", "Low"),
-                        ("#fee2e2", "< 50",  "Very Low"),
-                    ]):
-                        col.markdown(
-                            f'<div style="background:{bg};border-radius:8px;padding:0.45rem;'
-                            f'text-align:center;font-size:0.78rem"><b>{rng}</b><br>{label}</div>',
-                            unsafe_allow_html=True,
-                        )
-
-                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.metric("Mean plDDT", f"{mean_plddt}", plddt_label(mean_plddt))
+                    st.markdown("""
+| Score | Confidence |
+|-------|-----------|
+| > 90 | Very High |
+| 70–90 | Confident |
+| 50–70 | Low |
+| < 50 | Very Low |
+                    """)
                     st.markdown("**Per-residue plDDT score**")
-                    st.line_chart(plddt_df, width='stretch', height=300)
-                    st.caption(
-                        "Each point = one residue (Cα atom). "
-                        "Drops below 50 often mark intrinsically disordered regions."
-                    )
+                    st.line_chart(plddt_df, width="stretch", height=300)
+                    st.caption("Each point = one residue (Cα atom). Drops below 50 often mark intrinsically disordered regions.")
 
-        # Tab 3: Secondary structure 
         with tab3:
             if ss_counts:
                 with st.container(border=True):
@@ -599,29 +412,19 @@ if page == "Structure Prediction":
                     m1, m2, m3 = st.columns(3)
                     for col, (name, count) in zip([m1, m2, m3], ss_counts.items()):
                         pct = round(count / total_res * 100, 1)
-                        col.markdown(
-                            metric_card(f"{icons[name]} {name}", str(count), f"{pct}% of residues"),
-                            unsafe_allow_html=True,
-                        )
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.bar_chart(pd.DataFrame({"Residues": ss_counts}), width='stretch', height=280)
+                        col.metric(f"{icons[name]} {name}", str(count), f"{pct}% of residues")
+                    st.bar_chart(pd.DataFrame({"Residues": ss_counts}), width="stretch", height=280)
                     st.caption("Computed using biotite's P-SEA algorithm from the predicted PDB structure.")
 
-        # Tab 4: Sequence analysis
         with tab4:
             if folded_seq:
                 with st.container(border=True):
                     chart_col, seq_col = st.columns([2, 1])
                     with chart_col:
                         st.markdown("**Amino Acid Composition**")
-                        st.bar_chart(get_aa_composition(folded_seq), width='stretch', height=320)
+                        st.bar_chart(get_aa_composition(folded_seq), width="stretch", height=320)
                     with seq_col:
                         st.markdown("**Folded sequence**")
-                        wrapped = "\n".join(
-                            folded_seq[i:i+10] for i in range(0, len(folded_seq), 10)
-                        )
+                        wrapped = "\n".join(folded_seq[i:i+10] for i in range(0, len(folded_seq), 10))
                         st.code(wrapped, language=None)
-                        st.caption(
-                            f"{len(folded_seq)} residues · "
-                            f"{len(set(folded_seq))}/20 unique amino acids"
-                        )
+                        st.caption(f"{len(folded_seq)} residues · {len(set(folded_seq))}/20 unique amino acids")
